@@ -2,55 +2,53 @@ using System;
 using System.IO;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Text.RegularExpressions;
 
 namespace Live.Avalonia
 {
     internal sealed class LiveFileWatcher : IDisposable
     {
-        private readonly Subject<string> _fileChanged = new Subject<string>();
-        private readonly Action<string> _logger;
-        
-        private IDisposable _timerSubscription;
-        private string _latestSignature;
+        readonly Subject<string> _fileChanged = new Subject<string>();
+        readonly Action<string> _logger;
+
+        FileSystemWatcher watcher = new FileSystemWatcher()
+        {
+            EnableRaisingEvents = false
+        };
+
 
         public LiveFileWatcher(Action<string> logger) => _logger = logger;
 
-        public IObservable<string> FileChanged => _fileChanged;
+        public IObservable<string> FileChanged => _fileChanged.Throttle(TimeSpan.FromSeconds(0.5));
 
-        public void StartWatchingFileCreation(string filePath)
+        public void StartWatchingFileCreation(string dir, string filePath)
         {
-            _logger($"Registering observable timer-based watcher for file at: {filePath}");
-            _timerSubscription = Observable
-                .Interval(TimeSpan.FromSeconds(1))
-                .Subscribe(check => HandlePeriodicCheck(check, filePath));
+            try
+            {
+                _logger($"Registering observable file system watcher for file at: {filePath}");
+                watcher.Path = dir;
+                watcher.Filter = Path.GetFileName(filePath);
+                watcher.Changed += OnChanged;
+                watcher.IncludeSubdirectories = true;
+                watcher.EnableRaisingEvents = true;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
         }
 
-        private void HandlePeriodicCheck(long checkNumber, string filePath)
+        void OnChanged(object sender, FileSystemEventArgs args)
         {
-            if (!File.Exists(filePath))
-                return;
-            
-            var hash = FileHash(filePath);
-            if (_latestSignature == hash)
-                return;
-            
-            _logger($"File version has changed! (check #{checkNumber})");
-            _latestSignature = hash;
-            _fileChanged.OnNext(filePath);
+            _fileChanged.OnNext(args.FullPath);
         }
 
         public void Dispose()
         {
             _logger("Stopping the file creation watcher timer...");
             _fileChanged.Dispose();
-            _timerSubscription?.Dispose();
-        }
-
-        private static string FileHash(string filePath)
-        {
-            using var md5 = System.Security.Cryptography.MD5.Create();
-            var fileBytes = File.ReadAllBytes(filePath);
-            return BitConverter.ToString(md5.ComputeHash(fileBytes));
+            watcher.Changed -= OnChanged;
+            watcher.Dispose();
         }
     }
 }

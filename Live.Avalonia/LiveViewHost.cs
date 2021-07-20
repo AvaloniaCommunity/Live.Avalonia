@@ -35,8 +35,8 @@ namespace Live.Avalonia
         public void StartWatchingSourceFilesForHotReloading()
         {
             _logger("Starting source and assembly file watchers...");
-            var liveAssemblyPath = _sourceWatcher.StartRebuildingAssemblySources(_assemblyPath);
-            _assemblyWatcher.StartWatchingFileCreation(liveAssemblyPath);
+            var (liveAssemblyDir, liveAssemblyFile) = _sourceWatcher.StartRebuildingAssemblySources(_assemblyPath);
+            _assemblyWatcher.StartWatchingFileCreation(liveAssemblyDir, liveAssemblyFile);
         }
 
         public void Dispose()

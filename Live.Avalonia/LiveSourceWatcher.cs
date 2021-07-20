@@ -11,7 +11,7 @@ namespace Live.Avalonia
 
         public LiveSourceWatcher(Action<string> logger) => _logger = logger;
 
-        public string StartRebuildingAssemblySources(string assemblyPath)
+        public (string dir, string file) StartRebuildingAssemblySources(string assemblyPath)
         {
             _logger("Attempting to run 'dotnet watch' command for assembly sources...");
             var binDirectoryPath = FindAscendantDirectory(assemblyPath, "bin");
@@ -22,7 +22,10 @@ namespace Live.Avalonia
             _logger($"Preparing .live-bin directory...");
             var dotnetWatchBuildPath = Path.Combine(binDirectoryPath, ".live-bin") + Path.DirectorySeparatorChar;
             if (Directory.Exists(dotnetWatchBuildPath))
+            {
                 Directory.Delete(dotnetWatchBuildPath, true);
+                Directory.CreateDirectory(dotnetWatchBuildPath);
+            }
 
             _logger($"Executing 'dotnet watch' command from {projectDirectory}, building into {dotnetWatchBuildPath}");
             _dotnetWatchBuildProcess = new Process
@@ -42,7 +45,8 @@ namespace Live.Avalonia
             _dotnetWatchBuildProcess.Start();
             _logger($"Successfully managed to start 'dotnet watch' process with id {_dotnetWatchBuildProcess.Id}");
             var separator = Path.DirectorySeparatorChar;
-            return assemblyPath.Replace($"{separator}bin{separator}", $"{separator}bin{separator}.live-bin{separator}");
+            var liveAssemblyPath = assemblyPath.Replace($"{separator}bin{separator}", $"{separator}bin{separator}.live-bin{separator}");
+            return (dir: dotnetWatchBuildPath, file: liveAssemblyPath);
         }
         
         public void Dispose()
